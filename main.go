@@ -15,13 +15,14 @@ import (
 
 func init() {
 	config := &SAMLConfig{
-		IDPMetadataURL: "https://login.microsoftonline.com/2a3490ef-c3df-4323-ae94-a75f83817991/federationmetadata/2007-06/federationmetadata.xml?appid=336fcc57-ddf4-4748-ab81-69dadbaf2648",                  //os.Getenv("TYK_SAML_METADATA_URL"),
-		CertFile: "myservice.cert",
-		KeyFile: "myservice.key",
-		BaseURL: "https://8e1c71502ab8.ngrok.io",    //os.Getenv("TYK_SAML_BASE_URL"),
-		ForceAuthentication:true,
+		IDPMetadataURL: "https://login.microsoftonline.com/2a3490ef-c3df-4323-ae94-a75f83817991/federationmetadata/2007-06/federationmetadata.xml?appid=336fcc57-ddf4-4748-ab81-69dadbaf2648", //os.Getenv("TYK_SAML_METADATA_URL"),
+		CertFile:       "myservice.cert",
+		KeyFile:        "myservice.key",
+		BaseURL:        "https://8e1c71502ab8.ngrok.io", //os.Getenv("TYK_SAML_BASE_URL"),
+		SPMetadataURL:  "websso/saml/metadata",
+		SPAcsURL:       "websso/saml/acs",
+		SPSloURL:       "websso/saml/slo",
 	}
-
 
 	logger.Debug("Initialising middleware SAML")
 	//needs to match the signing cert if IDP
@@ -60,9 +61,9 @@ func init() {
 		Key: keyPair.PrivateKey.(*rsa.PrivateKey),
 	}
 
-	metadataURL := rootURL.ResolveReference(&url.URL{Path: "websso/saml/metadata"})
-	acsURL := rootURL.ResolveReference(&url.URL{Path: "websso/saml/acs"})
-	sloURL := rootURL.ResolveReference(&url.URL{Path: "websso/saml/slo"})
+	metadataURL := rootURL.ResolveReference(&url.URL{Path: config.SPMetadataURL})
+	acsURL := rootURL.ResolveReference(&url.URL{Path: config.SPAcsURL})
+	sloURL := rootURL.ResolveReference(&url.URL{Path: config.SPSloURL})
 
 	logger.Debugf("SP metadata URL: %v", metadataURL.String())
 	logger.Debugf("SP acs URL: %v", acsURL.String())
@@ -70,18 +71,17 @@ func init() {
 	var forceAuthn = config.ForceAuthentication
 
 	sp := saml.ServiceProvider{
-		EntityID:          metadataURL.String(),
-		Key:               keyPair.PrivateKey.(*rsa.PrivateKey),
-		Certificate:       keyPair.Leaf,
-		MetadataURL:       *metadataURL,
-		AcsURL:            *acsURL,
-		SloURL:            *sloURL,
-		IDPMetadata:       metadata,
-		ForceAuthn:        &forceAuthn,
+		EntityID:    metadataURL.String(),
+		Key:         keyPair.PrivateKey.(*rsa.PrivateKey),
+		Certificate: keyPair.Leaf,
+		MetadataURL: *metadataURL,
+		AcsURL:      *acsURL,
+		SloURL:      *sloURL,
+		IDPMetadata: metadata,
+		ForceAuthn:  &forceAuthn,
 	}
 	Middleware = &samlsp.Middleware{
 		ServiceProvider: sp,
-		//Binding:         saml.HTTPPostBinding,
 		OnError:         samlsp.DefaultOnError,
 		Session:         samlsp.DefaultSessionProvider(opts),
 	}
@@ -89,21 +89,19 @@ func init() {
 	Middleware.RequestTracker = samlsp.CookieRequestTracker{
 		ServiceProvider: &Middleware.ServiceProvider,
 		NamePrefix:      "saml_",
-		Codec:           samlsp.JWTTrackedRequestCodec{
-			SigningMethod: jwt.SigningMethodRS256,
-			Audience: rootURL.String(),
-			Issuer: rootURL.String(),
-			MaxAge: time.Second * 3600, //1 hour
-			Key: keyPair.PrivateKey.(*rsa.PrivateKey),
-
-		},
 		MaxAge:          saml.MaxIssueDelay,
+		Codec: samlsp.JWTTrackedRequestCodec{
+			SigningMethod: jwt.SigningMethodRS256,
+			Audience:      rootURL.String(),
+			Issuer:        rootURL.String(),
+			MaxAge:        time.Second * 3600, //1 hour
+			Key:           keyPair.PrivateKey.(*rsa.PrivateKey),
+		},
 	}
 
 	logger.Info("SAML Middleware initialised")
 }
 
-
-func main(){
+func main() {
 	//not run for a Go plugin
 }
