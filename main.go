@@ -7,8 +7,10 @@ import (
 	"crypto/x509"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
+	"github.com/dgrijalva/jwt-go"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 func init() {
@@ -67,24 +69,36 @@ func init() {
 
 	var forceAuthn = config.ForceAuthentication
 
-
+	sp := saml.ServiceProvider{
+		EntityID:          metadataURL.String(),
+		Key:               keyPair.PrivateKey.(*rsa.PrivateKey),
+		Certificate:       keyPair.Leaf,
+		MetadataURL:       *metadataURL,
+		AcsURL:            *acsURL,
+		SloURL:            *sloURL,
+		IDPMetadata:       metadata,
+		ForceAuthn:        &forceAuthn,
+	}
 	Middleware = &samlsp.Middleware{
-		ServiceProvider: saml.ServiceProvider{
-			EntityID:          metadataURL.String(),
-			Key:               keyPair.PrivateKey.(*rsa.PrivateKey),
-			Certificate:       keyPair.Leaf,
-			MetadataURL:       *metadataURL,
-			AcsURL:            *acsURL,
-			SloURL:            *sloURL,
-			IDPMetadata:       metadata,
-			ForceAuthn:        &forceAuthn,
-		},
+		ServiceProvider: sp,
 		//Binding:         saml.HTTPPostBinding,
 		OnError:         samlsp.DefaultOnError,
 		Session:         samlsp.DefaultSessionProvider(opts),
 	}
 
-	Middleware.RequestTracker = samlsp.DefaultRequestTracker(opts, &Middleware.ServiceProvider)
+	Middleware.RequestTracker = samlsp.CookieRequestTracker{
+		ServiceProvider: &Middleware.ServiceProvider,
+		NamePrefix:      "saml_",
+		Codec:           samlsp.JWTTrackedRequestCodec{
+			SigningMethod: jwt.SigningMethodRS256,
+			Audience: rootURL.String(),
+			Issuer: rootURL.String(),
+			MaxAge: time.Second * 3600, //1 hour
+			Key: keyPair.PrivateKey.(*rsa.PrivateKey),
+
+		},
+		MaxAge:          saml.MaxIssueDelay,
+	}
 
 	logger.Info("SAML Middleware initialised")
 }
