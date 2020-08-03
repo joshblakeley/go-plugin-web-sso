@@ -28,7 +28,7 @@ type SAMLConfig struct {
 	SessionJWTMaxAge    int
 }
 
-// RequireAccount is HTTP middleware that requires that each request be
+// SAMLWebSSO is HTTP middleware that requires that each request be
 // associated with a valid session. If the request is not associated with a valid
 // session, then rather than serve the request, the middleware redirects the user
 // to start the SAML auth flow.

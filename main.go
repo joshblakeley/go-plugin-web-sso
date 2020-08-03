@@ -83,21 +83,24 @@ func init() {
 	Middleware = &samlsp.Middleware{
 		ServiceProvider: sp,
 		OnError:         samlsp.DefaultOnError,
-		Session:         samlsp.DefaultSessionProvider(opts),
-	}
-
-	Middleware.RequestTracker = samlsp.CookieRequestTracker{
-		ServiceProvider: &Middleware.ServiceProvider,
-		NamePrefix:      "saml_",
-		MaxAge:          saml.MaxIssueDelay,
-		Codec: samlsp.JWTTrackedRequestCodec{
-			SigningMethod: jwt.SigningMethodRS256,
-			Audience:      rootURL.String(),
-			Issuer:        rootURL.String(),
-			MaxAge:        time.Second * 3600, //1 hour
-			Key:           keyPair.PrivateKey.(*rsa.PrivateKey),
+		Session:         samlsp.CookieSessionProvider{
+			Name:     "token",
+			Domain:   rootURL.Host,
+			MaxAge:   time.Second * 3600,
+			HTTPOnly: true,
+			Secure:   rootURL.Scheme == "https",
+			Codec:    samlsp.JWTSessionCodec{
+				SigningMethod: jwt.SigningMethodRS256,
+				Audience: config.SessionJWTAud,
+				Issuer: config.SessionJWTIss,
+				MaxAge: time.Second * 3600,
+				Key: keyPair.PrivateKey.(*rsa.PrivateKey),
+			},
 		},
 	}
+	Middleware.RequestTracker = samlsp.DefaultRequestTracker(opts,&sp)
+
+
 
 	logger.Info("SAML Middleware initialised")
 }
