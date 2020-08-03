@@ -3,6 +3,9 @@ Go plugin for Web SSO SAML with Tyk API Gateway
 
 Proof of Concept - contributions welcome
 
+For how to get started with Go plugins and Tyk see here:
+https://tyk.io/docs/plugins/supported-languages/golang/
+
 # What it does
 
 Logs a user in via specified IDP using SAML Post or redirect binding.
