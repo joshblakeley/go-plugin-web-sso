@@ -2,12 +2,13 @@ package main
 
 import (
 	"github.com/crewjam/saml/samlsp"
-	"github.com/sirupsen/logrus"
+
+	"github.com/TykTechnologies/tyk/log"
 	"net/http"
 )
 
 var (
-	logger = logrus.New()
+	logger = log.Get()
 )
 
 var Middleware *samlsp.Middleware
@@ -35,12 +36,17 @@ type SAMLConfig struct {
 //
 func SAMLWebSSO(w http.ResponseWriter, r *http.Request) {
 
+	logger.Info(r.URL.Path)
+	logger.Info(Middleware.ServiceProvider.AcsURL.Path)
+
 	if r.URL.Path == Middleware.ServiceProvider.MetadataURL.Path {
+		logger.Info("Serving metadata")
 		Middleware.ServeHTTP(w, r)
 		return
 	}
 	if r.URL.Path == Middleware.ServiceProvider.AcsURL.Path {
-		ServeACS(Middleware, w, r)
+		logger.Info("ACS called - checking assertion")
+		Middleware.ServeHTTP(w, r)
 		return
 	}
 	session, err := Middleware.Session.GetSession(r)
@@ -53,28 +59,10 @@ func SAMLWebSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err == samlsp.ErrNoSession {
+		logger.Info("No session found starting auth flow")
 		Middleware.HandleStartAuthFlow(w, r)
 		return
 	}
 }
 
-func ServeACS(m *samlsp.Middleware, w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
 
-	possibleRequestIDs := []string{}
-	possibleRequestIDs = append(possibleRequestIDs, "")
-
-	trackedRequests := m.RequestTracker.GetTrackedRequests(r)
-	for _, tr := range trackedRequests {
-		possibleRequestIDs = append(possibleRequestIDs, tr.SAMLRequestID)
-	}
-
-	assertion, err := m.ServiceProvider.ParseResponse(r, possibleRequestIDs)
-	if err != nil {
-		m.OnError(w, r, err)
-		return
-	}
-
-	m.CreateSessionFromAssertion(w, r, assertion)
-	return
-}

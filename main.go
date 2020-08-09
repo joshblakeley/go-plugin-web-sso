@@ -7,10 +7,8 @@ import (
 	"crypto/x509"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
-	"github.com/dgrijalva/jwt-go"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 func init() {
@@ -19,9 +17,10 @@ func init() {
 		CertFile:       "myservice.cert",
 		KeyFile:        "myservice.key",
 		BaseURL:        "https://8e1c71502ab8.ngrok.io", //os.Getenv("TYK_SAML_BASE_URL"),
-		SPMetadataURL:  "websso/saml/metadata",
-		SPAcsURL:       "websso/saml/acs",
-		SPSloURL:       "websso/saml/slo",
+		SPMetadataURL:  "/websso/saml/metadata",
+		SPAcsURL:       "/websso/saml/acs",
+		SPSloURL:       "/websso/saml/slo",
+		ForceAuthentication: true,
 	}
 
 	logger.Debug("Initialising middleware SAML")
@@ -65,8 +64,8 @@ func init() {
 	acsURL := rootURL.ResolveReference(&url.URL{Path: config.SPAcsURL})
 	sloURL := rootURL.ResolveReference(&url.URL{Path: config.SPSloURL})
 
-	logger.Debugf("SP metadata URL: %v", metadataURL.String())
-	logger.Debugf("SP acs URL: %v", acsURL.String())
+	logger.Infof("SP metadata URL: %v", metadataURL.String())
+	logger.Infof("SP acs URL: %v", acsURL.String())
 
 	var forceAuthn = config.ForceAuthentication
 
@@ -79,24 +78,26 @@ func init() {
 		SloURL:      *sloURL,
 		IDPMetadata: metadata,
 		ForceAuthn:  &forceAuthn,
+		AllowIDPInitiated: false,
 	}
 	Middleware = &samlsp.Middleware{
 		ServiceProvider: sp,
 		OnError:         samlsp.DefaultOnError,
-		Session:         samlsp.CookieSessionProvider{
-			Name:     "token",
-			Domain:   rootURL.Host,
-			MaxAge:   time.Second * 3600,
-			HTTPOnly: true,
-			Secure:   rootURL.Scheme == "https",
-			Codec:    samlsp.JWTSessionCodec{
-				SigningMethod: jwt.SigningMethodRS256,
-				Audience: config.SessionJWTAud,
-				Issuer: config.SessionJWTIss,
-				MaxAge: time.Second * 3600,
-				Key: keyPair.PrivateKey.(*rsa.PrivateKey),
-			},
-		},
+		Session:		 samlsp.DefaultSessionProvider(opts),
+		//Session:         samlsp.CookieSessionProvider{
+		//	Name:     "token",
+		//	Domain:   rootURL.Host,
+		//	MaxAge:   time.Second * 3600,
+		//	HTTPOnly: true,
+		//	Secure:   rootURL.Scheme == "https",
+		//	Codec:    samlsp.JWTSessionCodec{
+		//		SigningMethod: jwt.SigningMethodRS256,
+		//		Audience: config.SessionJWTAud,
+		//		Issuer: config.SessionJWTIss,
+		//		MaxAge: time.Second * 3600,
+		//		Key: keyPair.PrivateKey.(*rsa.PrivateKey),
+		//	},
+		//},
 	}
 	Middleware.RequestTracker = samlsp.DefaultRequestTracker(opts,&sp)
 
